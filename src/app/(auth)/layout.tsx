@@ -1,26 +1,33 @@
-// src/app/layout.tsx
-import type { Metadata } from "next";
-import { Plus_Jakarta_Sans } from "next/font/google";
-import "../globals.css";
+// src/app/(auth)/layout.tsx
+import { redirect } from "next/navigation";
+import { createSupabaseServerClient } from "@/lib/supabase/server";
 
-export const metadata: Metadata = {
-  title: "HMON",
-  description: "Plataforma de multicálculo de seguros",
-};
-
-const jakarta = Plus_Jakarta_Sans({
-  subsets: ["latin"],
-  variable: "--font-jakarta",
-});
-
-export default function RootLayout({
+export default async function AuthLayout({
   children,
-}: { children: React.ReactNode }) {
-  return (
-    <html lang="pt-BR">
-      <body className={`${jakarta.variable} antialiased bg-brand-cream`}>
-        {children}
-      </body>
-    </html>
-  );
+}: {
+  children: React.ReactNode;
+}) {
+  const supabase = await createSupabaseServerClient();
+
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  if (user) {
+    // consulta a função SQL criada no Supabase
+    const { data: isActive, error } = await supabase.rpc(
+      "is_subscription_active",
+      { uid: user.id }
+    );
+
+    // Se estiver tudo ok, decide o destino; em caso de erro, manda pra billing
+    if (!error) {
+      redirect(isActive ? "/dashboard" : "/billing");
+    } else {
+      redirect("/billing");
+    }
+  }
+
+  // sem sessão → renderiza a UI de login/check-email normalmente
+  return <>{children}</>;
 }
